@@ -2,24 +2,24 @@ var Accessory = require('../').Accessory;
 var Service = require('../').Service;
 var Characteristic = require('../').Characteristic;
 var uuid = require('../').uuid;
+var Gpio = require('onoff').Gpio;
+var led = new Gpio(17, 'out');
 
-// here's a fake hardware device that we'll expose to HomeKit
-var FAKE_LIGHT = {
-  powerOn: false,
-  brightness: 100, // percentage
-  
-  setPowerOn: function(on) { 
-    console.log("Turning the light %s!", on ? "on" : "off");
-    FAKE_LIGHT.powerOn = on;
-  },
-  setBrightness: function(brightness) {
-    console.log("Setting light brightness to %s", brightness);
-    FAKE_LIGHT.brightness = brightness;
-  },
-  identify: function() {
-    console.log("Identify the light!");
-  }
-}
+// turn off the light on init
+led.writeSync(1);
+
+var BED_LIGHT = {
+    powerOn: false,
+    setPowerOn: function (on) {
+        console.log("Turning the light %s!", on ? "on" : "off");
+        BED_LIGHT.powerOn = on;
+        led.writeSync(on ? 0 : 1);
+    },
+    identify: function() {
+        console.log("Identify the light!");
+    }
+};
+
 
 // Generate a consistent UUID for our light Accessory that will remain the same even when
 // restarting our server. We use the `uuid.generate` helper function to create a deterministic
@@ -42,18 +42,18 @@ light
 
 // listen for the "identify" event for this Accessory
 light.on('identify', function(paired, callback) {
-  FAKE_LIGHT.identify();
-  callback(); // success
+    BED_LIGHT.identify();
+    callback(); // success
 });
 
 // Add the actual Lightbulb Service and listen for change events from iOS.
 // We can see the complete list of Services and Characteristics in `lib/gen/HomeKitTypes.js`
 light
-  .addService(Service.Lightbulb, "Fake Light") // services exposed to the user should have "names" like "Fake Light" for us
+  .addService(Service.Lightbulb, "Bed Light") // services exposed to the user should have "names" like "Fake Light" for us
   .getCharacteristic(Characteristic.On)
   .on('set', function(value, callback) {
-    FAKE_LIGHT.setPowerOn(value);
-    callback(); // Our fake Light is synchronous - this value has been successfully set
+      BED_LIGHT.setPowerOn(value);
+      callback();
   });
 
 // We want to intercept requests for our current power state so we can query the hardware itself instead of
@@ -69,7 +69,7 @@ light
     
     var err = null; // in case there were any problems
     
-    if (FAKE_LIGHT.powerOn) {
+    if (BED_LIGHT.powerOn) {
       console.log("Are we on? Yes.");
       callback(err, true);
     }
@@ -78,15 +78,3 @@ light
       callback(err, false);
     }
   });
-
-// also add an "optional" Characteristic for Brightness
-light
-  .getService(Service.Lightbulb)
-  .addCharacteristic(Characteristic.Brightness)
-  .on('get', function(callback) {
-    callback(null, FAKE_LIGHT.brightness);
-  })
-  .on('set', function(value, callback) {
-    FAKE_LIGHT.setBrightness(value);
-    callback();
-  })
